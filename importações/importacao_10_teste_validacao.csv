@@ -1,0 +1,8 @@
+colaborador;produto;cliente;valor;data;status
+Ana Souza;Crédito Pessoal;Cliente Válido;20000;2026-11-07;liquidada
+Fábio Nunes;Crédito Pessoal;Colaborador Inexistente;10000;2026-11-07;liquidada
+Bruno Lima;Investimentos;Valor Negativo;-5000;2026-11-07;liquidada
+Carla Mendes;Crédito Pessoal;Data Inválida;15000;07/11/2026;liquidada
+Diego Alves;Serviços Personalizados;Cliente Válido 2;1;2026-11-07;liquidada
+Ana Souza;Crédito Pessoal;Valor Zerado;0;2026-11-07;liquidada
+Bruno Lima;Investimentos;Linha Incompleta
