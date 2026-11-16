@@ -101,3 +101,17 @@ test("devolução: gestor e financeiro devolvem só comissões aprovadas", () =>
   assert.ok(m.bloqueioDevolver(ap, U.c1), "colaborador não devolve");
   assert.ok(m.bloqueioDevolver({ ...c, status: "Paga" }, U.f1), "paga não é devolvida");
 });
+
+test("log: append-only, com autor, e o encadeamento detecta alteração", () => {
+  let logs = [];
+  logs = m.registrarLog(logs, { usuario: U.g1, acao: "APROVAR", detalhe: "Comissão #1", entidade: "comissão", entidadeId: 1 });
+  logs = m.registrarLog(logs, { usuario: U.f1, acao: "PAGAR", detalhe: "Comissão #1", entidade: "comissão", entidadeId: 1 });
+  logs = m.registrarLog(logs, { usuario: U.f1, acao: "PAGAR", detalhe: "Aprovador não pode pagar", resultado: "bloqueado" });
+  assert.equal(logs.length, 3);
+  assert.equal(logs[0].usuario, "Marcos Gestor");
+  assert.ok(Object.isFrozen(logs[0]));
+  assert.deepEqual(m.verificarLog(logs), { ok: true, quebradoEm: null });
+  const adulterado = logs.map((e, i) => (i === 1 ? { ...e, detalhe: "outro valor" } : e));
+  assert.deepEqual(m.verificarLog(adulterado), { ok: false, quebradoEm: 2 });
+  assert.equal(m.verificarLog(logs.slice(1)).ok, false, "remover o primeiro registro quebra a cadeia");
+});

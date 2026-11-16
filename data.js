@@ -131,13 +131,37 @@ function bloqueioDevolver(c, usuario) {
   return null;
 }
 
+// ===== Log de atividades =====
+// Registro global e append-only de quem fez o quê. Cada entrada guarda um hash encadeado com a
+// anterior, o que permite detectar edição ou remoção casual. Sem servidor, quem tem acesso ao
+// navegador ainda consegue recalcular tudo: para imutabilidade real o log precisa ficar no backend.
+const hashTexto = (s) => { let h = 0x811c9dc5; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; } return h.toString(16).padStart(8, "0"); };
+const corpoLog = (e) => [e.id, e.em, e.usuario, e.perfil, e.acao, e.entidade, e.entidadeId, e.detalhe, e.resultado].join("|");
+
+function registrarLog(logs, { usuario, acao, detalhe = "", entidade = "", entidadeId = "", resultado = "ok" }) {
+  const ant = logs[logs.length - 1];
+  const e = { id: logs.length + 1, em: new Date().toISOString(), usuario: usuario ? usuario.nome : "sistema", perfil: usuario ? usuario.perfil : "-", acao, entidade, entidadeId, detalhe, resultado };
+  e.hash = hashTexto((ant ? ant.hash : "") + corpoLog(e));
+  return [...logs, Object.freeze(e)];
+}
+
+// Confere o encadeamento. Devolve { ok, quebradoEm } (id da primeira entrada alterada).
+function verificarLog(logs) {
+  let prev = "";
+  for (const e of logs) {
+    if (e.hash !== hashTexto(prev + corpoLog(e))) return { ok: false, quebradoEm: e.id };
+    prev = e.hash;
+  }
+  return { ok: true, quebradoEm: null };
+}
+
 function dadosIniciais() {
   const { validas } = importarCsv(CSV_EXEMPLO, REGRAS_INICIAIS, [], "Fernanda Financeiro");
   const comissoes = validas.map((c, i) => ({ ...c, id: i + 1 }));
   comissoes[0] = evolui(comissoes[0], "Aprovada", "Aprovada pelo gestor", "Marcos Gestor", { aprovadoPor: "Marcos Gestor" });
   comissoes[0] = evolui(comissoes[0], "Paga", "Pagamento processado e registrado", "Ricardo Financeiro", { pagoPor: "Ricardo Financeiro" });
   comissoes[1] = evolui(comissoes[1], "Aprovada", "Aprovada pelo gestor", "Marcos Gestor", { aprovadoPor: "Marcos Gestor" });
-  return { comissoes, regras: REGRAS_INICIAIS, notificacoes: [] };
+  return { comissoes, regras: REGRAS_INICIAIS, notificacoes: [], logs: [] };
 }
 
 function carregar() {
@@ -162,6 +186,6 @@ function baixarXlsx(nome, linhas) {
 }
 
 if (typeof module !== "undefined") {
-  module.exports = { calcular, importarCsv, regraVigente, evolui, bloqueioAprovar, bloqueioPagar, bloqueioDevolver, chaveOperacao,
+  module.exports = { calcular, importarCsv, regraVigente, evolui, bloqueioAprovar, bloqueioPagar, bloqueioDevolver, registrarLog, verificarLog, chaveOperacao,
     REGRAS_INICIAIS, USUARIOS, COLABORADORES, CSV_EXEMPLO, dadosIniciais, somaDias };
 }
