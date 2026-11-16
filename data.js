@@ -124,6 +124,13 @@ function bloqueioPagar(c, usuario) {
   return null;
 }
 
+// Gestor ou financeiro podem devolver uma comissão aprovada (e ainda não paga) para nova conferência
+function bloqueioDevolver(c, usuario) {
+  if (!["gestor", "financeiro"].includes(usuario.perfil)) return "Somente gestor ou financeiro devolvem comissões para revisão.";
+  if (c.status !== "Aprovada") return "Só é possível devolver comissões aprovadas e ainda não pagas.";
+  return null;
+}
+
 function dadosIniciais() {
   const { validas } = importarCsv(CSV_EXEMPLO, REGRAS_INICIAIS, [], "Fernanda Financeiro");
   const comissoes = validas.map((c, i) => ({ ...c, id: i + 1 }));
@@ -155,6 +162,6 @@ function baixarXlsx(nome, linhas) {
 }
 
 if (typeof module !== "undefined") {
-  module.exports = { calcular, importarCsv, regraVigente, evolui, bloqueioAprovar, bloqueioPagar, chaveOperacao,
+  module.exports = { calcular, importarCsv, regraVigente, evolui, bloqueioAprovar, bloqueioPagar, bloqueioDevolver, chaveOperacao,
     REGRAS_INICIAIS, USUARIOS, COLABORADORES, CSV_EXEMPLO, dadosIniciais, somaDias };
 }

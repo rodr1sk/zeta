@@ -1,5 +1,8 @@
 // ===== Páginas =====
 
+// Só comissões já aprovadas (ou pagas) contam para meta e ranking
+const CONTA_META = ["Aprovada", "Paga"];
+
 // Gestor: acompanhar desempenho da equipe
 function Dashboard({ comissoes }) {
   const soma = (st) => comissoes.filter((c) => st.includes(c.status)).reduce((t, c) => t + c.valor, 0);
@@ -10,12 +13,13 @@ function Dashboard({ comissoes }) {
         <div className="col-6 col-xl-3"><Kpi titulo="Aprovadas a pagar" valor={brl(soma(["Aprovada"]))} detalhe="liberadas ao financeiro" ouro /></div>
         <div className="col-6 col-xl-3"><Kpi titulo="Pagas" valor={brl(soma(["Paga"]))} detalhe="no histórico" /></div>
         <div className="col-6 col-xl-3"><Kpi titulo="Contestadas" valor={brl(soma(["Contestada"]))} detalhe="em análise" /></div>
-        <div className="col-6 col-xl-3"><Kpi titulo="Estornadas" valor={brl(soma(["Estornada"]))} detalhe="não contam no desempenho" /></div>
+        <div className="col-6 col-xl-3"><Kpi titulo="Estornadas" valor={brl(soma(["Estornada"]))} detalhe="fora do desempenho" /></div>
       </div>
       <div className="panel">
-        <h5 className="mb-3">Desempenho da equipe (meta de comissão)</h5>
+        <h5 className="mb-1">Desempenho da equipe (meta de comissão)</h5>
+        <p className="small text-secondary">Considera apenas comissões aprovadas ou pagas.</p>
         {COLABORADORES.map((p) => {
-          const t = comissoes.filter((c) => c.colaboradorId === p.id && c.status !== "Estornada").reduce((s, c) => s + c.valor, 0);
+          const t = comissoes.filter((c) => CONTA_META.includes(c.status) && c.colaboradorId === p.id).reduce((s, c) => s + c.valor, 0);
           return (
             <div key={p.id} className="mb-3">
               <div className="d-flex justify-content-between">
@@ -32,9 +36,9 @@ function Dashboard({ comissoes }) {
   );
 }
 
-// Ranking de colaboradores por comissão válida (exclui estornadas)
+// Ranking por comissões aprovadas ou pagas
 function Ranking({ comissoes }) {
-  const lista = COLABORADORES.map((p) => ({ ...p, total: comissoes.filter((c) => c.colaboradorId === p.id && c.status !== "Estornada").reduce((s, c) => s + c.valor, 0) }))
+  const lista = COLABORADORES.map((p) => ({ ...p, total: comissoes.filter((c) => CONTA_META.includes(c.status) && c.colaboradorId === p.id).reduce((s, c) => s + c.valor, 0) }))
     .sort((a, b) => b.total - a.total);
   return (
     <div className="panel mt-4">
@@ -146,8 +150,14 @@ function Comissoes({ comissoes, acoes, usuario }) {
             <button className="btn btn-sm btn-outline-secondary me-1" onClick={() => acoes.ajustar(c)}>Ajustar</button>
             <button className="btn btn-sm btn-primary" onClick={() => acoes.aprovar(c.id)}>Aprovar</button>
           </>}
+          {gestor && c.status === "Aprovada" && <>
+            <span className="small text-secondary me-1">Aguardando o financeiro</span>
+            <button className="btn btn-sm btn-outline-warning" onClick={() => acoes.devolver(c)}>Devolver</button>
+          </>}
+          {c.status === "Calculada" && c.devolucao && <span className="badge text-bg-warning me-1" title={c.devolucao.motivo}>Devolvida</span>}
           {gestor && c.status === "Contestada" && <button className="btn btn-sm btn-warning" onClick={() => acoes.responder(c)}>Responder</button>}
           {fin && c.status === "Aprovada" && <button className="btn btn-sm btn-success me-1" onClick={() => acoes.pagar(c.id)}>Processar pagamento</button>}
+          {fin && c.status === "Aprovada" && <button className="btn btn-sm btn-outline-warning me-1" onClick={() => acoes.devolver(c)}>Devolver ao gestor</button>}
           {fin && ["Aprovada", "Paga"].includes(c.status) && <button className="btn btn-sm btn-outline-danger" onClick={() => acoes.estornar(c)}>Estornar</button>}
         </>
       )} />
