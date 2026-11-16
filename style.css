@@ -38,3 +38,24 @@ h1.titulo { font-weight: 800; letter-spacing: -.5px; }
   .sidebar .nav-link { width: auto; }
   .content { padding: 1rem; }
 }
+
+/* Tabela de comissões sem rolagem horizontal */
+.tabela-comissoes { width: 100%; }
+.tabela-comissoes td, .tabela-comissoes th { word-break: break-word; }
+@media (max-width: 991px) {
+  .table.tabela-comissoes thead { display: none; }
+  .table.tabela-comissoes, .table.tabela-comissoes tbody { display: block; }
+  .table.tabela-comissoes tr { display: block; border: 1px solid #dbe2df; border-radius: .6rem; margin-bottom: .75rem; padding: .5rem .85rem; background: #fff; }
+  .table.tabela-comissoes td { display: flex; justify-content: space-between; align-items: center; gap: 1rem; border: 0; padding: .3rem 0; text-align: right; background: transparent; box-shadow: none; }
+  .table.tabela-comissoes td::before { content: attr(data-label); font-weight: 600; color: #5b6f6c; text-align: left; flex-shrink: 0; }
+  .table.tabela-comissoes td.acoes { justify-content: flex-end; padding-top: .6rem; }
+  .table.tabela-comissoes td.acoes::before { content: none; }
+}
+/* Impressão / PDF: esconde menu e controles; o extrato aberto vira o documento */
+@media print {
+  .no-print, .sidebar { display: none !important; }
+  .content { padding: 0; }
+  body:has(.extrato-modal) .content > *:not(.extrato-modal) { display: none; }
+  .extrato-modal { position: static !important; background: none !important; }
+  .extrato-modal .btn-close { display: none; }
+}
