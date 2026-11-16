@@ -313,3 +313,59 @@ function MinhasComissoes({ comissoes, colaboradorId, notificacoes, onContestar }
     </>
   );
 }
+
+
+// Gestor e financeiro: log de atividades (quem fez o quê, quando e com qual resultado)
+function LogAtividades({ logs }) {
+  const [usu, setUsu] = React.useState("Todos");
+  const [acao, setAcao] = React.useState("Todas");
+  const [res, setRes] = React.useState("Todos");
+  const [q, setQ] = React.useState("");
+  const integridade = React.useMemo(() => verificarLog(logs), [logs]);
+  const filtrados = logs.filter((e) => (usu === "Todos" || e.usuario === usu) && (acao === "Todas" || e.acao === acao)
+    && (res === "Todos" || e.resultado === res) && (!q || (e.detalhe + e.entidadeId).toLowerCase().includes(q.toLowerCase())));
+  const recentes = [...filtrados].reverse();
+  const quando = (iso) => new Date(iso).toLocaleString("pt-BR");
+  const exportar = () => baixarCsv("log-atividades.csv", [["#", "Data/hora", "Usuário", "Perfil", "Ação", "Entidade", "Id", "Resultado", "Detalhe"],
+    ...filtrados.map((e) => [e.id, quando(e.em), e.usuario, e.perfil, e.acao, e.entidade, e.entidadeId, e.resultado, e.detalhe])]);
+  return (
+    <div className="panel">
+      <div className={"alert py-2 small " + (integridade.ok ? "alert-success" : "alert-danger")} role="status">
+        {integridade.ok ? `Encadeamento do log íntegro (${logs.length} registro(s)).` : `Atenção: o log foi alterado a partir do registro #${integridade.quebradoEm}.`}
+        {" "}Neste protótipo o log fica no navegador; imutabilidade real exige servidor.
+      </div>
+      <div className="d-flex flex-wrap gap-2 mb-3 align-items-center">
+        <select className="form-select w-auto" aria-label="Usuário" value={usu} onChange={(e) => setUsu(e.target.value)}>
+          <option>Todos</option>{[...new Set(logs.map((e) => e.usuario))].map((u) => <option key={u}>{u}</option>)}
+        </select>
+        <select className="form-select w-auto" aria-label="Ação" value={acao} onChange={(e) => setAcao(e.target.value)}>
+          <option>Todas</option>{[...new Set(logs.map((e) => e.acao))].map((a) => <option key={a}>{a}</option>)}
+        </select>
+        <select className="form-select w-auto" aria-label="Resultado" value={res} onChange={(e) => setRes(e.target.value)}>
+          <option>Todos</option><option value="ok">ok</option><option value="bloqueado">bloqueado</option>
+        </select>
+        <input className="form-control w-auto" aria-label="Buscar" placeholder="Buscar no detalhe ou #" value={q} onChange={(e) => setQ(e.target.value)} />
+        <button className="btn btn-outline-primary ms-auto" onClick={exportar}>Exportar CSV</button>
+      </div>
+      {!recentes.length ? <p className="text-secondary mb-0">Nenhum registro encontrado.</p> : (
+        <div className="table-responsive">
+          <table className="table table-sm align-middle mb-0">
+            <thead><tr><th>#</th><th>Data/hora</th><th>Usuário</th><th>Ação</th><th>Resultado</th><th>Detalhe</th></tr></thead>
+            <tbody>
+              {recentes.slice(0, 200).map((e) => (
+                <tr key={e.id}>
+                  <td>{e.id}</td><td className="text-nowrap">{quando(e.em)}</td>
+                  <td>{e.usuario}<div className="small text-secondary">{e.perfil}</div></td>
+                  <td><code>{e.acao}</code></td>
+                  <td><span className={"badge text-bg-" + (e.resultado === "ok" ? "success" : "danger")}>{e.resultado}</span></td>
+                  <td>{e.detalhe}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {recentes.length > 200 && <p className="small text-secondary mt-2 mb-0">Mostrando os 200 mais recentes de {recentes.length}. Use os filtros ou exporte o CSV para ver todos.</p>}
+        </div>
+      )}
+    </div>
+  );
+}

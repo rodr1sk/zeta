@@ -1,7 +1,7 @@
 // ===== App: estado, perfis e ações do fluxo =====
 const MENUS = {
-  gestor: [["dashboard", "Desempenho e ranking"], ["comissoes", "Conferir e aprovar"], ["regras", "Regras de comissão"], ["relatorios", "Relatórios"]],
-  financeiro: [["importar", "Importar vendas"], ["comissoes", "Pagar e estornar"], ["relatorios", "Relatórios"]],
+  gestor: [["dashboard", "Desempenho e ranking"], ["comissoes", "Conferir e aprovar"], ["regras", "Regras de comissão"], ["relatorios", "Relatórios"], ["log", "Log de atividades"]],
+  financeiro: [["importar", "Importar vendas"], ["comissoes", "Pagar e estornar"], ["relatorios", "Relatórios"], ["log", "Log de atividades"]],
   colaborador: [["minhas", "Minhas comissões"]],
 };
 const ROTULO_PERFIL = { gestor: "Gestor", financeiro: "Financeiro", colaborador: "Colaborador" };
@@ -29,26 +29,31 @@ function App() {
   const [comissoes, setComissoes] = React.useState(inicial.comissoes);
   const [regras, setRegras] = React.useState(inicial.regras);
   const [notificacoes, setNotificacoes] = React.useState(inicial.notificacoes || []);
+  const [logs, setLogs] = React.useState(inicial.logs || []);
   const [usuario, setUsuario] = React.useState(null);
   const [pagina, setPagina] = React.useState("");
   const [aviso, setAviso] = React.useState("");
 
   React.useEffect(() => {
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ comissoes, regras, notificacoes })); } catch (e) {}
-  }, [comissoes, regras, notificacoes]);
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ comissoes, regras, notificacoes, logs })); } catch (e) {}
+  }, [comissoes, regras, notificacoes, logs]);
 
   const avisar = (m) => { setAviso(m); setTimeout(() => setAviso(""), 4000); };
   const mudar = (id, fn) => setComissoes((cs) => cs.map((c) => (c.id === id ? fn(c) : c)));
   const notificar = (colaboradorId, msg) => setNotificacoes((n) => [...n, { id: n.length + 1, colaboradorId, em: agora(), msg, lida: false }]);
   const por = usuario && usuario.nome;
+  // Registra no log global quem fez o quê (usa o usuário logado, ou extra.usuario no login)
+  const log = (acao, detalhe, extra = {}) => setLogs((l) => registrarLog(l, { usuario, ...extra, acao, detalhe }));
+  const bloqueado = (acao, id, motivo) => { log(acao, motivo, { entidade: "comissão", entidadeId: id, resultado: "bloqueado" }); avisar("Bloqueado: " + motivo); };
   const achar = (id) => comissoes.find((c) => c.id === id);
 
   const acoes = {
     aprovar: (id) => {
       const c = achar(id), b = bloqueioAprovar(c, usuario);
-      if (b) return avisar("Bloqueado: " + b);
+      if (b) return bloqueado("APROVAR", id, b);
       mudar(id, (x) => evolui(x, "Aprovada", "Aprovada pelo gestor", por, { aprovadoPor: por, devolucao: null }));
       notificar(c.colaboradorId, `Sua comissão #${id} (${brl(c.valor)}) foi aprovada.`);
+      log("APROVAR", `Comissão #${id} (${brl(c.valor)})`, { entidade: "comissão", entidadeId: id });
       avisar("Comissão aprovada.");
     },
     aprovarTodas: () => {
@@ -56,6 +61,7 @@ function App() {
       const ids = new Set(aprovaveis.map((c) => c.id));
       setComissoes((cs) => cs.map((c) => ids.has(c.id) ? evolui(c, "Aprovada", "Aprovada pelo gestor", por, { aprovadoPor: por, devolucao: null }) : c));
       aprovaveis.forEach((c) => notificar(c.colaboradorId, `Sua comissão #${c.id} (${brl(c.valor)}) foi aprovada.`));
+      log("APROVAR_LOTE", `${ids.size} comissão(ões) aprovada(s): #${[...ids].join(", #") || "—"}`, { entidade: "comissão" });
       const puladas = comissoes.filter((c) => c.status === "Calculada").length - ids.size;
       avisar(`${ids.size} aprovada(s).` + (puladas ? ` ${puladas} não puderam ser aprovadas por você (segregação de funções ou carência).` : ""));
     },
@@ -65,31 +71,35 @@ function App() {
       const just = prompt("Justificativa do ajuste:");
       if (!just) return alert("O ajuste exige uma justificativa.");
       mudar(c.id, (x) => evolui(x, "Calculada", `Ajuste de ${brl(x.valor)} para ${brl(v)}. Justificativa: ${just}`, por, { valor: Math.round(v * 100) / 100, ajustadoPor: por }));
+      log("AJUSTAR", `Comissão #${c.id}: ${brl(c.valor)} para ${brl(v)}. Justificativa: ${just}`, { entidade: "comissão", entidadeId: c.id });
       avisar("Cálculo ajustado. Outro gestor precisa aprová-lo.");
     },
     pagar: (id) => {
       const c = achar(id), b = bloqueioPagar(c, usuario);
-      if (b) return avisar("Bloqueado: " + b);
+      if (b) return bloqueado("PAGAR", id, b);
       mudar(id, (x) => evolui(x, "Paga", "Pagamento processado e registrado", por, { pagoPor: por }));
       notificar(c.colaboradorId, `Pagamento da comissão #${id} (${brl(c.valor)}) processado.`);
+      log("PAGAR", `Comissão #${id} (${brl(c.valor)})`, { entidade: "comissão", entidadeId: id });
       avisar("Pagamento processado e histórico atualizado.");
     },
     estornar: (c) => {
-      if (usuario.perfil !== "financeiro") return avisar("Bloqueado: somente o financeiro estorna comissões.");
+      if (usuario.perfil !== "financeiro") return bloqueado("ESTORNAR", c.id, "Somente o financeiro estorna comissões.");
       const m = prompt(`Motivo do estorno da comissão #${c.id} (${brl(c.valor)}):`);
       if (!m) return alert("O estorno exige um motivo.");
       const clawback = c.status === "Paga" ? " Valor a descontar (clawback) em pagamento futuro." : "";
       mudar(c.id, (x) => evolui(x, "Estornada", `Estornada. Motivo: ${m}.${clawback}`, por, { estornadaPor: por }));
       notificar(c.colaboradorId, `Sua comissão #${c.id} (${brl(c.valor)}) foi estornada.`);
+      log("ESTORNAR", `Comissão #${c.id} (${brl(c.valor)}). Motivo: ${m}`, { entidade: "comissão", entidadeId: c.id });
       avisar("Comissão estornada.");
     },
     devolver: (c) => {
       const b = bloqueioDevolver(c, usuario);
-      if (b) return avisar("Bloqueado: " + b);
+      if (b) return bloqueado("DEVOLVER", c.id, b);
       const m = prompt(`Motivo para devolver a comissão #${c.id} (${brl(c.valor)}) para revisão:`);
       if (!m) return alert("A devolução exige um motivo.");
       mudar(c.id, (x) => evolui(x, "Calculada", `Devolvida para revisão por ${usuario.perfil === "financeiro" ? "financeiro" : "gestor"}. Motivo: ${m}`, por,
         { aprovadoPor: null, devolucao: { por, perfil: usuario.perfil, motivo: m } }));
+      log("DEVOLVER", `Comissão #${c.id}. Motivo: ${m}`, { entidade: "comissão", entidadeId: c.id });
       avisar("Comissão devolvida para nova conferência do gestor.");
     },
     responder: (c) => {
@@ -97,6 +107,7 @@ function App() {
       if (!r) return;
       mudar(c.id, (x) => evolui(x, "Calculada", "Contestação respondida: " + r, por, { contestacao: { ...x.contestacao, resposta: r }, ajustadoPor: por }));
       notificar(c.colaboradorId, `Sua contestação da comissão #${c.id} foi respondida.`);
+      log("RESPONDER_CONTESTACAO", `Comissão #${c.id}. Resposta: ${r}`, { entidade: "comissão", entidadeId: c.id });
       avisar("Resposta registrada. Outro gestor precisa aprovar a comissão.");
     },
   };
@@ -105,6 +116,7 @@ function App() {
     const m = prompt(`Por que você contesta a comissão #${c.id} (${brl(c.valor)})?`);
     if (!m) return;
     mudar(c.id, (x) => evolui(x, "Contestada", "Contestação aberta: " + m, por, { contestacao: { motivo: m, resposta: null } }));
+    log("CONTESTAR", `Comissão #${c.id}. Motivo: ${m}`, { entidade: "comissão", entidadeId: c.id });
     avisar("Contestação enviada ao gestor.");
   };
 
@@ -114,11 +126,12 @@ function App() {
       let id = cs.reduce((m, c) => Math.max(m, c.id), 0);
       return [...cs, ...r.validas.map((c) => ({ ...c, id: ++id }))];
     });
+    log("IMPORTAR", `${r.validas.length} comissão(ões) gerada(s), ${r.erros.length} linha(s) recusada(s)`, { entidade: "importação" });
     return r;
   };
 
   // Regra nova para um produto encerra a versão anterior na véspera da nova vigência (versionamento)
-  const adicionarRegra = (nova) => setRegras((rs) => {
+  const adicionarRegraBase = (nova) => setRegras((rs) => {
     const doProduto = rs.filter((r) => r.produto === nova.produto);
     const versao = doProduto.reduce((m, r) => Math.max(m, r.versao), 0) + 1;
     const id = rs.reduce((m, r) => Math.max(m, r.id), 0) + 1;
@@ -126,11 +139,15 @@ function App() {
       ? { ...r, vigenciaFim: somaDias(nova.vigenciaInicio, -1) } : r;
     return [...rs.map(fecha), { ...nova, id, versao }];
   });
-  const encerrarRegra = (id) => setRegras((rs) => rs.map((r) => r.id === id && !r.vigenciaFim ? { ...r, vigenciaFim: hoje() } : r));
+  const encerrarRegraBase = (id) => setRegras((rs) => rs.map((r) => r.id === id && !r.vigenciaFim ? { ...r, vigenciaFim: hoje() } : r));
 
-  const entrar = (u) => { setUsuario(u); setPagina(MENUS[u.perfil][0][0]); };
+  const adicionarRegra = (nova) => { log("REGRA_CRIAR", `${nova.produto} (${nova.tipo}), vigência a partir de ${nova.vigenciaInicio}, carência ${nova.carenciaDias} dia(s)`, { entidade: "regra" }); adicionarRegraBase(nova); };
+  const encerrarRegra = (id) => { const r = regras.find((x) => x.id === id); log("REGRA_ENCERRAR", `${r ? r.produto + " v" + r.versao : "Regra"} encerrada em ${hoje()}`, { entidade: "regra", entidadeId: id }); encerrarRegraBase(id); };
+
+  const entrar = (u) => { log("LOGIN", "Entrada no sistema (simulada)", { usuario: u }); setUsuario(u); setPagina(MENUS[u.perfil][0][0]); };
   const restaurar = () => {
-    if (!confirm("Restaurar os dados de exemplo? Suas alterações serão perdidas.")) return;
+    if (!confirm("Restaurar os dados de exemplo? Suas alterações serão perdidas. O log de atividades é mantido.")) return;
+    log("RESTAURAR_DADOS", "Dados de exemplo restaurados");
     const d = dadosIniciais(); setComissoes(d.comissoes); setRegras(d.regras); setNotificacoes([]);
   };
 
@@ -144,7 +161,7 @@ function App() {
         <div className="brand mb-4">zeta<span>.</span></div>
         <div className="small mb-1">{usuario.nome}</div>
         <div className="small text-secondary mb-2">{ROTULO_PERFIL[usuario.perfil]}</div>
-        <button className="btn btn-sm btn-outline-light mb-2" onClick={() => setUsuario(null)}>Sair</button>
+        <button className="btn btn-sm btn-outline-light mb-2" onClick={() => { log("LOGOUT", "Saída do sistema"); setUsuario(null); }}>Sair</button>
         <nav className="nav flex-column mt-3 gap-1">
           {menu.map(([id, nome]) => (
             <button key={id} className={"nav-link" + (pagina === id ? " active" : "")} onClick={() => setPagina(id)}>{nome}</button>
@@ -160,6 +177,7 @@ function App() {
         {pagina === "importar" && <Importar regras={regras} onImportar={importar} />}
         {pagina === "comissoes" && <Comissoes comissoes={comissoes} acoes={acoes} usuario={usuario} />}
         {pagina === "regras" && <Regras regras={regras} onAdicionar={adicionarRegra} onEncerrar={encerrarRegra} />}
+        {pagina === "log" && <LogAtividades logs={logs} />}
         {pagina === "relatorios" && <Relatorios comissoes={comissoes} />}
         {pagina === "minhas" && <MinhasComissoes comissoes={comissoes} colaboradorId={usuario.colaboradorId} notificacoes={notificacoes.filter((n) => n.colaboradorId === usuario.colaboradorId)} onContestar={contestar} />}
       </main>
