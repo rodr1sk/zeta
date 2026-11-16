@@ -1,0 +1,8 @@
+colaborador;produto;cliente;valor;data;status
+Ana Souza;Crédito Pessoal;Restaurante Fogo de Chão Sul;51000;2026-11-02;liquidada
+Ana Souza;Crédito Pessoal;Loja de Móveis Casa Nova;30000;2026-11-03;cancelada
+Bruno Lima;Investimentos;Heitor Barcellos;125000;2026-11-03;liquidada
+Bruno Lima;Investimentos;Vera Lúcia Rocha;40000;2026-11-04;cancelada
+Carla Mendes;Crédito Pessoal;Clínica Veterinária Pata;19500;2026-11-05;liquidada
+Diego Alves;Serviços Personalizados;Academia Força Total;1;2026-11-05;cancelada
+Diego Alves;Serviços Personalizados;Agência Pixel;1;2026-11-06;liquidada

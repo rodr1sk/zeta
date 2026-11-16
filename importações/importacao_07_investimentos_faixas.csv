@@ -1,0 +1,8 @@
+colaborador;produto;cliente;valor;data;status
+Bruno Lima;Investimentos;Faixa 1 - Cliente A;10000;2026-11-02;liquidada
+Bruno Lima;Investimentos;Faixa 1 - Cliente B;50000;2026-11-02;liquidada
+Bruno Lima;Investimentos;Faixa 2 - Cliente C;50001;2026-11-03;liquidada
+Bruno Lima;Investimentos;Faixa 2 - Cliente D;200000;2026-11-03;liquidada
+Bruno Lima;Investimentos;Faixa 3 - Cliente E;200001;2026-11-04;liquidada
+Bruno Lima;Investimentos;Faixa 3 - Cliente F;500000;2026-11-04;liquidada
+Carla Mendes;Investimentos;Faixa 2 - Cliente G;120000;2026-11-05;liquidada

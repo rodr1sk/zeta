@@ -1,0 +1,19 @@
+colaborador;produto;cliente;valor;data;status
+Ana Souza;Crédito Pessoal;Marcenaria Pinheiro;25000;2026-11-02;liquidada
+Ana Souza;Crédito Pessoal;Restaurante Sabor Sul;48000.50;2026-11-04;liquidada
+Ana Souza;Crédito Pessoal;Transportes Rápido;72000;2026-11-06;liquidada
+Ana Souza;Serviços Personalizados;Letícia Barros;1;2026-11-07;liquidada
+Bruno Lima;Investimentos;Marcos Vieira;35000;2026-11-02;liquidada
+Bruno Lima;Investimentos;Helena Prado;90000;2026-11-03;liquidada
+Bruno Lima;Investimentos;Grupo Andrade;250000;2026-11-05;liquidada
+Bruno Lima;Investimentos;Paulo Teixeira;180000;2026-11-08;liquidada
+Carla Mendes;Crédito Pessoal;Farmácia Popular Centro;18000;2026-11-02;liquidada
+Carla Mendes;Crédito Pessoal;Academia Corpo Ativo;33500;2026-11-03;liquidada
+Carla Mendes;Crédito Pessoal;Construtora Horizonte;95000;2026-11-05;liquidada
+Carla Mendes;Investimentos;Ricardo Fontes;60000;2026-11-07;liquidada
+Diego Alves;Serviços Personalizados;Studio Lume;1;2026-11-02;liquidada
+Diego Alves;Serviços Personalizados;Ótica Visão Clara;1;2026-11-03;liquidada
+Diego Alves;Serviços Personalizados;Escola Pequeno Mundo;1;2026-11-04;liquidada
+Diego Alves;Serviços Personalizados;Clínica Bem Viver;1;2026-11-06;liquidada
+Diego Alves;Crédito Pessoal;Mercado Bom Preço;22000;2026-11-08;liquidada
+Ana Souza;Crédito Pessoal;Café Aurora;12000;2026-11-08;cancelada

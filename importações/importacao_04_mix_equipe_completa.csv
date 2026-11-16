@@ -1,0 +1,9 @@
+colaborador;produto;cliente;valor;data;status
+Ana Souza;Crédito Pessoal;Auto Peças Veloz;42000;2026-11-03;liquidada
+Bruno Lima;Investimentos;Lúcia Ferraz;95000;2026-11-03;liquidada
+Carla Mendes;Crédito Pessoal;Boutique Estilo;18500;2026-11-04;liquidada
+Diego Alves;Serviços Personalizados;Clínica Sorriso;1;2026-11-04;liquidada
+Ana Souza;Serviços Personalizados;Escritório Lima & Filhos;1;2026-11-05;liquidada
+Bruno Lima;Investimentos;Gustavo Pimentel;210000;2026-11-05;liquidada
+Carla Mendes;Investimentos;Marta Colombo;48000;2026-11-06;liquidada
+Diego Alves;Crédito Pessoal;Oficina do Zé;14000;2026-11-06;liquidada
