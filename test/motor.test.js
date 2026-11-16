@@ -91,3 +91,13 @@ test("histórico é append-only e registra o autor", () => {
   assert.ok(Object.isFrozen(e.historico[1]));
   assert.equal(e.status, "Estornada");
 });
+
+test("devolução: gestor e financeiro devolvem só comissões aprovadas", () => {
+  const c = m.importarCsv(CSV, R, [], "Fernanda Financeiro").validas[0];
+  assert.ok(m.bloqueioDevolver(c, U.f1), "calculada não é devolvida");
+  const ap = { ...c, status: "Aprovada" };
+  assert.equal(m.bloqueioDevolver(ap, U.f1), null);
+  assert.equal(m.bloqueioDevolver(ap, U.g2), null);
+  assert.ok(m.bloqueioDevolver(ap, U.c1), "colaborador não devolve");
+  assert.ok(m.bloqueioDevolver({ ...c, status: "Paga" }, U.f1), "paga não é devolvida");
+});

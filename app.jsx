@@ -47,14 +47,14 @@ function App() {
     aprovar: (id) => {
       const c = achar(id), b = bloqueioAprovar(c, usuario);
       if (b) return avisar("Bloqueado: " + b);
-      mudar(id, (x) => evolui(x, "Aprovada", "Aprovada pelo gestor", por, { aprovadoPor: por }));
+      mudar(id, (x) => evolui(x, "Aprovada", "Aprovada pelo gestor", por, { aprovadoPor: por, devolucao: null }));
       notificar(c.colaboradorId, `Sua comissão #${id} (${brl(c.valor)}) foi aprovada.`);
       avisar("Comissão aprovada.");
     },
     aprovarTodas: () => {
       const aprovaveis = comissoes.filter((c) => c.status === "Calculada" && !bloqueioAprovar(c, usuario));
       const ids = new Set(aprovaveis.map((c) => c.id));
-      setComissoes((cs) => cs.map((c) => ids.has(c.id) ? evolui(c, "Aprovada", "Aprovada pelo gestor", por, { aprovadoPor: por }) : c));
+      setComissoes((cs) => cs.map((c) => ids.has(c.id) ? evolui(c, "Aprovada", "Aprovada pelo gestor", por, { aprovadoPor: por, devolucao: null }) : c));
       aprovaveis.forEach((c) => notificar(c.colaboradorId, `Sua comissão #${c.id} (${brl(c.valor)}) foi aprovada.`));
       const puladas = comissoes.filter((c) => c.status === "Calculada").length - ids.size;
       avisar(`${ids.size} aprovada(s).` + (puladas ? ` ${puladas} não puderam ser aprovadas por você (segregação de funções ou carência).` : ""));
@@ -82,6 +82,15 @@ function App() {
       mudar(c.id, (x) => evolui(x, "Estornada", `Estornada. Motivo: ${m}.${clawback}`, por, { estornadaPor: por }));
       notificar(c.colaboradorId, `Sua comissão #${c.id} (${brl(c.valor)}) foi estornada.`);
       avisar("Comissão estornada.");
+    },
+    devolver: (c) => {
+      const b = bloqueioDevolver(c, usuario);
+      if (b) return avisar("Bloqueado: " + b);
+      const m = prompt(`Motivo para devolver a comissão #${c.id} (${brl(c.valor)}) para revisão:`);
+      if (!m) return alert("A devolução exige um motivo.");
+      mudar(c.id, (x) => evolui(x, "Calculada", `Devolvida para revisão por ${usuario.perfil === "financeiro" ? "financeiro" : "gestor"}. Motivo: ${m}`, por,
+        { aprovadoPor: null, devolucao: { por, perfil: usuario.perfil, motivo: m } }));
+      avisar("Comissão devolvida para nova conferência do gestor.");
     },
     responder: (c) => {
       const r = prompt(`Resposta à contestação de ${nomeDe(c.colaboradorId)}:\n"${c.contestacao.motivo}"`);

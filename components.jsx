@@ -36,6 +36,11 @@ function Extrato({ c, onClose }) {
               <dt className="col-4">Elegível em</dt><dd className="col-8">{c.elegivelEm || c.data}</dd>
               <dt className="col-4">Status</dt><dd className="col-8"><StatusBadge status={c.status} /></dd>
             </dl>
+            {c.devolucao && c.status === "Calculada" && (
+              <div className="alert alert-warning py-2">
+                <strong>Devolvida para revisão</strong> por {c.devolucao.por} ({c.devolucao.perfil}): {c.devolucao.motivo}
+              </div>
+            )}
             {c.contestacao && (
               <div className="alert alert-warning py-2">
                 <strong>Contestação:</strong> {c.contestacao.motivo}
