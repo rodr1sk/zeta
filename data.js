@@ -1,5 +1,5 @@
 // ===== Dados de exemplo, motor de cálculo e utilitários =====
-const STORAGE_KEY = "zeta-comissoes-v1";
+const STORAGE_KEY = "zeta-comissoes-v2";
 
 const COLABORADORES = [
   { id: 1, nome: "Ana Souza", equipe: "Crédito", meta: 1500 },
@@ -8,11 +8,22 @@ const COLABORADORES = [
   { id: 4, nome: "Diego Alves", equipe: "Serviços", meta: 900 },
 ];
 
+// Usuários simulados (protótipo sem backend: não substitui autenticação real).
+// Segregação de funções: quem importa/ajusta não aprova; quem aprova não paga.
+const USUARIOS = [
+  ...COLABORADORES.map((c) => ({ id: "c" + c.id, nome: c.nome, perfil: "colaborador", colaboradorId: c.id })),
+  { id: "g1", nome: "Marcos Gestor", perfil: "gestor" },
+  { id: "g2", nome: "Paula Gestora", perfil: "gestor" },
+  { id: "f1", nome: "Fernanda Financeiro", perfil: "financeiro" },
+  { id: "f2", nome: "Ricardo Financeiro", perfil: "financeiro" },
+];
+
+// Regras são versionadas: nunca são apagadas, apenas encerradas (vigenciaFim) e substituídas.
 const REGRAS_INICIAIS = [
-  { id: 1, produto: "Crédito Pessoal", tipo: "percentual", percentual: 2.5 },
-  { id: 2, produto: "Investimentos", tipo: "escalonado",
+  { id: 1, produto: "Crédito Pessoal", tipo: "percentual", percentual: 2.5, carenciaDias: 0, vigenciaInicio: "2026-01-01", vigenciaFim: null, versao: 1 },
+  { id: 2, produto: "Investimentos", tipo: "escalonado", carenciaDias: 0, vigenciaInicio: "2026-01-01", vigenciaFim: null, versao: 1,
     faixas: [{ ate: 50000, percentual: 0.5 }, { ate: 200000, percentual: 0.8 }, { ate: null, percentual: 1.2 }] },
-  { id: 3, produto: "Serviços Personalizados", tipo: "fixo", valorFixo: 150 },
+  { id: 3, produto: "Serviços Personalizados", tipo: "fixo", valorFixo: 150, carenciaDias: 0, vigenciaInicio: "2026-01-01", vigenciaFim: null, versao: 1 },
 ];
 
 const CSV_EXEMPLO = `colaborador;produto;cliente;valor;data;status
@@ -29,62 +40,97 @@ Ana Souza;Crédito Pessoal;Café Aurora;12000;2026-11-08;cancelada`;
 
 const brl = (v) => Number(v).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 const agora = () => new Date().toLocaleString("pt-BR");
+const hoje = () => new Date().toISOString().slice(0, 10);
 const nomeDe = (id) => (COLABORADORES.find((c) => c.id === id) || {}).nome || "—";
+const somaDias = (iso, dias) => { const d = new Date(iso + "T00:00:00Z"); d.setUTCDate(d.getUTCDate() + dias); return d.toISOString().slice(0, 10); };
 
-// Cálculo determinístico, arredondado em centavos
-function calcular(produto, base, regras) {
-  const r = regras.find((x) => x.produto === produto);
+// Regra vigente na data da operação (a versão mais nova entre as que cobrem a data)
+function regraVigente(produto, data, regras) {
+  return regras
+    .filter((r) => r.produto === produto && r.vigenciaInicio <= data && (!r.vigenciaFim || data <= r.vigenciaFim))
+    .sort((a, b) => b.versao - a.versao)[0] || null;
+}
+
+// Cálculo determinístico em centavos inteiros (sem erro de ponto flutuante acumulado)
+function calcular(produto, base, regras, data = hoje()) {
+  const r = regraVigente(produto, data, regras);
   if (!r) return null;
-  let valor, descricao;
+  const baseC = Math.round(base * 100);
+  let centavos, descricao;
   if (r.tipo === "percentual") {
-    valor = (base * r.percentual) / 100;
+    centavos = Math.round((baseC * r.percentual) / 100);
     descricao = `${r.percentual}% sobre ${brl(base)}`;
   } else if (r.tipo === "escalonado") {
     const f = r.faixas.find((f) => f.ate === null || base <= f.ate);
-    valor = (base * f.percentual) / 100;
+    centavos = Math.round((baseC * f.percentual) / 100);
     descricao = `Faixa escalonada ${f.percentual}% sobre ${brl(base)}`;
   } else {
-    valor = r.valorFixo;
+    centavos = Math.round(r.valorFixo * 100);
     descricao = `Valor fixo de ${brl(r.valorFixo)} por operação`;
   }
-  return { valor: Math.round(valor * 100) / 100, descricao };
+  return { valor: centavos / 100, descricao: `${descricao} (regra #${r.id} v${r.versao})`, regraId: r.id, regraVersao: r.versao, carenciaDias: r.carenciaDias || 0 };
 }
 
-// Importa vendas (CSV com ";") -> verifica dados -> calcula. Linhas ruins voltam como erros.
-function importarCsv(texto, regras) {
+// Chave natural da operação: impede duplicar comissões ao reimportar o mesmo arquivo
+const chaveOperacao = (nome, produto, cliente, valor, data) =>
+  [nome, produto, cliente, Number(valor).toFixed(2), data].map((s) => String(s).trim().toLowerCase()).join("|");
+
+// Importa vendas (CSV com ";") -> valida -> calcula. Linhas ruins ou repetidas voltam como erros.
+function importarCsv(texto, regras, chavesExistentes = [], autor = "sistema") {
   const validas = [], erros = [];
+  const vistas = new Set(chavesExistentes);
   texto.split("\n").map((l) => l.trim()).filter(Boolean).forEach((l) => {
     if (/^colaborador/i.test(l)) return;
     const [nome, produto, cliente, v, data, status] = l.split(";").map((s) => (s || "").trim());
-    const valor = parseFloat(v.replace(",", "."));
-    const col = COLABORADORES.find((c) => c.nome.toLowerCase() === nome.toLowerCase());
+    const valor = parseFloat((v || "").replace(",", "."));
+    const col = COLABORADORES.find((c) => c.nome.toLowerCase() === (nome || "").toLowerCase());
+    const chave = chaveOperacao(nome, produto, cliente, valor, data);
     const motivo = !col ? "Colaborador não cadastrado"
       : !(valor > 0) ? "Valor inválido"
       : !/^\d{4}-\d{2}-\d{2}$/.test(data) ? "Data inválida (use AAAA-MM-DD)"
-      : status.toLowerCase() === "cancelada" ? "Operação cancelada, não gera comissão"
-      : !regras.some((r) => r.produto === produto) ? "Produto sem regra de comissão"
+      : (status || "").toLowerCase() === "cancelada" ? "Operação cancelada, não gera comissão"
+      : (status || "").toLowerCase() !== "liquidada" ? "Operação não liquidada, não gera comissão"
+      : !regraVigente(produto, data, regras) ? "Produto sem regra de comissão vigente na data da operação"
+      : vistas.has(chave) ? "Operação já importada (duplicada)"
       : null;
     if (motivo) return erros.push({ linha: l, motivo });
-    const c = calcular(produto, valor, regras);
+    vistas.add(chave);
+    const c = calcular(produto, valor, regras, data);
     validas.push({
-      colaboradorId: col.id, produto, cliente, base: valor, data,
-      valor: c.valor, regra: c.descricao, status: "Calculada", contestacao: null,
-      historico: [{ em: agora(), msg: "Comissão calculada: " + c.descricao }],
+      colaboradorId: col.id, produto, cliente, base: valor, data, chave,
+      valor: c.valor, regra: c.descricao, regraId: c.regraId, regraVersao: c.regraVersao,
+      elegivelEm: somaDias(data, c.carenciaDias),
+      status: "Calculada", contestacao: null, criadoPor: autor, aprovadoPor: null, pagoPor: null,
+      historico: [{ em: agora(), por: autor, msg: "Comissão calculada: " + c.descricao }],
     });
   });
   return { validas, erros };
 }
 
-// Devolve a comissão com novo status e registro no histórico (rastreabilidade)
-const evolui = (c, status, msg, extra = {}) =>
-  ({ ...c, ...extra, status, historico: [...c.historico, { em: agora(), msg }] });
+// Devolve a comissão com novo status. O histórico só cresce (append-only) e guarda quem agiu.
+const evolui = (c, status, msg, por, extra = {}) =>
+  ({ ...c, ...extra, status, historico: [...c.historico, Object.freeze({ em: agora(), por, msg })] });
+
+// Regras de segregação de funções. Devolve o motivo do bloqueio ou null.
+function bloqueioAprovar(c, usuario) {
+  if (usuario.perfil !== "gestor") return "Somente gestores aprovam comissões.";
+  if (c.criadoPor === usuario.nome || c.ajustadoPor === usuario.nome) return "Quem calculou ou ajustou não pode aprovar a mesma comissão.";
+  if (c.elegivelEm > hoje()) return `Comissão em carência até ${c.elegivelEm}.`;
+  return null;
+}
+function bloqueioPagar(c, usuario) {
+  if (usuario.perfil !== "financeiro") return "Somente o financeiro processa pagamentos.";
+  if (c.aprovadoPor === usuario.nome) return "Quem aprovou não pode pagar a mesma comissão.";
+  return null;
+}
 
 function dadosIniciais() {
-  const { validas } = importarCsv(CSV_EXEMPLO, REGRAS_INICIAIS);
+  const { validas } = importarCsv(CSV_EXEMPLO, REGRAS_INICIAIS, [], "Fernanda Financeiro");
   const comissoes = validas.map((c, i) => ({ ...c, id: i + 1 }));
-  comissoes[0] = evolui(comissoes[0], "Paga", "Pagamento processado e registrado");
-  comissoes[1] = evolui(comissoes[1], "Aprovada", "Aprovada pelo gestor");
-  return { comissoes, regras: REGRAS_INICIAIS };
+  comissoes[0] = evolui(comissoes[0], "Aprovada", "Aprovada pelo gestor", "Marcos Gestor", { aprovadoPor: "Marcos Gestor" });
+  comissoes[0] = evolui(comissoes[0], "Paga", "Pagamento processado e registrado", "Ricardo Financeiro", { pagoPor: "Ricardo Financeiro" });
+  comissoes[1] = evolui(comissoes[1], "Aprovada", "Aprovada pelo gestor", "Marcos Gestor", { aprovadoPor: "Marcos Gestor" });
+  return { comissoes, regras: REGRAS_INICIAIS, notificacoes: [] };
 }
 
 function carregar() {
@@ -98,4 +144,17 @@ function baixarCsv(nome, linhas) {
   a.href = URL.createObjectURL(new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8" }));
   a.download = nome;
   a.click();
+}
+
+// Excel de verdade (.xlsx) via SheetJS, carregada no index.html
+function baixarXlsx(nome, linhas) {
+  const ws = XLSX.utils.aoa_to_sheet(linhas);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Comissões");
+  XLSX.writeFile(wb, nome);
+}
+
+if (typeof module !== "undefined") {
+  module.exports = { calcular, importarCsv, regraVigente, evolui, bloqueioAprovar, bloqueioPagar, chaveOperacao,
+    REGRAS_INICIAIS, USUARIOS, COLABORADORES, CSV_EXEMPLO, dadosIniciais, somaDias };
 }
